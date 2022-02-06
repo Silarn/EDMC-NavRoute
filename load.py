@@ -101,7 +101,7 @@ def process_jumps():
     if remaining_jumps > 1:
         next_label = '{}{}'.format(
             next_system['StarSystem'],
-            (' +' + (remaining_jumps - 1).__str__()) if remaining_jumps > 2 else ""
+            (' | +' + (remaining_jumps - 2).__str__()) if remaining_jumps > 2 else ""
         )
         remaining_string = 'NavRoute: {} Jumps Remaining:'.format(remaining_jumps)
         navroute_string = '{} -> {} -> {}'.format(current_system, next_label, last_system['StarSystem'])
