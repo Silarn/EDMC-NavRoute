@@ -66,7 +66,10 @@ def journal_entry(cmdr: Optional[str], is_beta: bool, system: Optional[str],
         if found:
             remaining_jumps = entry['RemainingJumpsInRoute']
     if entry['event'] == 'NavRoute':
-        route = entry['Route']
+        if state['NavRoute'] is not None:
+            route = state['NavRoute']['Route']
+        else:
+            route = entry['Route']
         remaining_jumps = len(route) - 1
         process_jumps()
     if entry['event'] == 'FSDJump':
@@ -93,6 +96,11 @@ def journal_entry(cmdr: Optional[str], is_beta: bool, system: Optional[str],
         else:
             remain_label['text'] = "NavRoute: No NavRoute Set"
             navroute_label['text'] = "Plot a Route to Begin"
+
+    if state['NavRoute'] is not None:
+        if route != state['NavRoute']['Route']:
+            route = state['NavRoute']['Route']
+            process_jumps()
 
 
 def process_jumps():
