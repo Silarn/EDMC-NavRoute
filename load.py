@@ -113,6 +113,8 @@ def process_jumps():
         )
         remaining_string = 'NavRoute: {} Jumps Remaining:'.format(remaining_jumps)
         navroute_string = '{} -> {} -> {}'.format(current_system, next_label, last_system['StarSystem'])
+        if len(navroute_string) > 60:
+            navroute_string = '{}\n-> {}\n-> {}'.format(current_system, next_label, last_system['StarSystem'])
         remain_label['text'] = remaining_string
         navroute_label['text'] = navroute_string
     else:
