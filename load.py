@@ -59,10 +59,11 @@ def journal_entry(cmdr: Optional[str], is_beta: bool, system: Optional[str],
     current_system = system
     if entry['event'] == 'FSDTarget':
         found = False
-        for nav in route:
-            if nav['StarSystem'] == entry['Name']:
-                found = True
-                break
+        if route is not None:
+            for nav in route:
+                if nav['StarSystem'] == entry['Name']:
+                    found = True
+                    break
         if found:
             remaining_jumps = entry['RemainingJumpsInRoute']
     if entry['event'] == 'NavRoute':
