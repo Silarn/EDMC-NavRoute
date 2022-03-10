@@ -29,7 +29,7 @@ from EDMCLogging import get_main_logger
 logger = get_main_logger()
 
 current_system: str = "Unknown"
-route: Optional[List] = None
+route: Optional[Dict] = None
 frame: Optional[tk.Frame] = None
 title_label: Optional[tk.Label] = None
 remain_label: Optional[tk.Label] = None
