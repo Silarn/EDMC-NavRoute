@@ -34,6 +34,7 @@ frame: Optional[tk.Frame] = None
 title_label: Optional[tk.Label] = None
 remain_label: Optional[tk.Label] = None
 navroute_label: Optional[tk.Label] = None
+search_route: bool = False
 remaining_jumps: int = 0
 
 
@@ -55,7 +56,7 @@ def plugin_app(parent: tk.Frame) -> tk.Frame:
 
 def journal_entry(cmdr: Optional[str], is_beta: bool, system: Optional[str],
                   station: Optional[str], entry: Dict[str, Any], state: Dict[str, Any]):
-    global route, remaining_jumps, current_system
+    global route, remaining_jumps, current_system, search_route
     current_system = system
     if entry['event'] == 'FSDTarget':
         found = False
@@ -72,14 +73,17 @@ def journal_entry(cmdr: Optional[str], is_beta: bool, system: Optional[str],
         else:
             route = entry['Route']
         remaining_jumps = len(route) - 1
+        search_route = True
         process_jumps()
     if entry['event'] == 'FSDJump':
         if route is not None:
+            logger.debug(route[-1])
             if entry['StarSystem'] == route[-1]['StarSystem']:
                 remain_label['text'] = "NavRoute: Route Complete!"
                 navroute_label['text'] = "No NavRoute Destination Set"
                 remaining_jumps = 0
                 route = None
+                search_route = False
             else:
                 found = False
                 for nav in route:
@@ -98,9 +102,10 @@ def journal_entry(cmdr: Optional[str], is_beta: bool, system: Optional[str],
             remain_label['text'] = "NavRoute: No NavRoute Set"
             navroute_label['text'] = "Plot a Route to Begin"
 
-    if state['NavRoute'] is not None:
+    if state['NavRoute'] is not None and search_route:
         if route != state['NavRoute']['Route']:
             route = state['NavRoute']['Route']
+            search_route = False
             process_jumps()
 
 
