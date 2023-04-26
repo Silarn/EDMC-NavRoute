@@ -77,7 +77,6 @@ def journal_entry(cmdr: Optional[str], is_beta: bool, system: Optional[str],
         process_jumps()
     if entry['event'] == 'FSDJump':
         if route is not None:
-            logger.debug(route[-1])
             if entry['StarSystem'] == route[-1]['StarSystem']:
                 remain_label['text'] = "NavRoute: Route Complete!"
                 navroute_label['text'] = "No NavRoute Destination Set"
