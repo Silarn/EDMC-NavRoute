@@ -78,8 +78,8 @@ def plugin_prefs(parent: nb.Frame, cmdr: str, is_beta: bool) -> nb.Frame:
     frame = nb.Frame(parent)
     frame.columnconfigure(1, weight=1)
 
-    HyperlinkLabel(frame, text='Pioneer', background=nb.Label().cget('background'),
-                   url='https://github.com/Silarn/EDMC-Pioneer', underline=True) \
+    HyperlinkLabel(frame, text='NavRoute', background=nb.Label().cget('background'),
+                   url='https://github.com/Silarn/EDMC-NavRoute', underline=True) \
         .grid(row=1, padx=x_padding, sticky=tk.W)
     nb.Label(frame, text = 'Version %s' % this.VERSION).grid(row=1, column=1, padx=x_padding, sticky=tk.E)
 
