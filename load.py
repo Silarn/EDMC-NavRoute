@@ -106,7 +106,7 @@ def prefs_changed(cmdr: str, is_beta: bool) -> None:
 
 
 def parse_config() -> None:
-    this.jump_num = tk.IntVar(value=config.get_int(key='navrout_jumps', default=1))
+    this.jump_num = tk.IntVar(value=config.get_int(key='navroute_jumps', default=1))
 
 
 def validate_int(val: str) -> bool:
@@ -178,13 +178,13 @@ def process_jumps() -> None:
     display = f"{this.current_system}"
 
     for i, jump in enumerate(remaining_route):
-        if i >= this.jump_num.get() or i == (len(remaining_route) - 1):
+        if i >= this.jump_num.get() or i == (len(remaining_route)):
             display += f" -> {last_system['StarSystem']}"
             break
         else:
             display += f" -> {jump['StarSystem']}"
-            if i == (this.jump_num.get() - 1):
-                display += " | + {}".format(this.remaining_jumps-this.jump_num.get()-1)
+            if i == (this.jump_num.get() - 1) and i < len(remaining_route) - 2:
+                display += " | +{} Jump(s)".format(this.remaining_jumps-this.jump_num.get()-1)
 
     if len(display) > 60:
         display = "\n-> ".join(display.split(" -> "))
