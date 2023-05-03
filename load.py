@@ -100,7 +100,7 @@ def validate_int(val: str) -> bool:
 
 def journal_entry(cmdr: str, is_beta: bool, system: str,
                   station: str, entry: MutableMapping[str, Any], state: Mapping[str, Any]) -> str:
-    this.current_system = state['SystemName']
+    this.current_system = system if system is not None else ''
 
     match entry['event']:
         case 'FSDTarget':
@@ -120,6 +120,12 @@ def journal_entry(cmdr: str, is_beta: bool, system: str,
             this.remaining_jumps = len(this.route) - 1
             this.search_route = True
             process_jumps()
+        case 'NavRouteClear':
+            this.remaining_jumps = 0
+            this.route = None
+            this.search_route = False
+            this.remain_label['text'] = "NavRoute: NavRoute Cleared"
+            this.navroute_label['text'] = "Plot a Route to Begin"
         case 'FSDJump':
             if this.route is not None:
                 if entry['StarSystem'] == this.route[-1]['StarSystem']:
