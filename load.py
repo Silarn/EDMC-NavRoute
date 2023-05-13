@@ -27,7 +27,7 @@ class This:
 
         self.logger: EDMCLogging.LoggerMixin = get_main_logger()
         self.current_system: str = "Unknown"
-        self.route: dict | None = None
+        self.route: dict = {}
         self.frame: tk.Frame | None = None
         self.title_label: tk.Label | None = None
         self.remain_label: tk.Label | None = None
@@ -105,7 +105,7 @@ def journal_entry(cmdr: str, is_beta: bool, system: str,
     match entry['event']:
         case 'FSDTarget':
             found = False
-            if this.route is not None:
+            if this.route:
                 for nav in this.route:
                     if nav['StarSystem'] == entry['Name']:
                         found = True
@@ -117,22 +117,22 @@ def journal_entry(cmdr: str, is_beta: bool, system: str,
                 this.route = state['NavRoute']['Route']
             else:
                 this.route = entry['Route']
-            this.remaining_jumps = len(this.route) - 1
+            this.remaining_jumps = len(this.route) - 1 if this.route else 0
             this.search_route = True
             process_jumps()
         case 'NavRouteClear':
             this.remaining_jumps = 0
-            this.route = None
+            this.route.clear()
             this.search_route = False
             this.remain_label['text'] = "NavRoute: NavRoute Cleared"
             this.navroute_label['text'] = "Plot a Route to Begin"
         case 'FSDJump':
-            if this.route is not None:
+            if this.route:
                 if entry['StarSystem'] == this.route[-1]['StarSystem']:
                     this.remain_label['text'] = "NavRoute: Route Complete!"
                     this.navroute_label['text'] = "No NavRoute Destination Set"
                     this.remaining_jumps = 0
-                    this.route = None
+                    this.route.clear()
                     this.search_route = False
                 else:
                     found = False
@@ -162,7 +162,7 @@ def journal_entry(cmdr: str, is_beta: bool, system: str,
 
 
 def process_jumps() -> None:
-    remaining_route = this.route[-this.remaining_jumps:]
+    remaining_route = this.route[-this.remaining_jumps:] if this.route else {}
     last_system = this.route[-1]
     display = f"{this.current_system}"
 
