@@ -41,6 +41,7 @@ class This:
         self.overlay = overlay.Overlay()
         self.use_overlay: tk.BooleanVar | None = None
         self.overlay_color: tk.StringVar | None = None
+        self.overlay_size: tk.StringVar | None = None
         self.overlay_anchor_x: tk.IntVar | None = None
         self.overlay_anchor_y: tk.IntVar | None = None
 
@@ -143,6 +144,21 @@ def plugin_prefs(parent: nb.Frame, cmdr: str, is_beta: bool) -> nb.Frame:
         width=8, validate='all', validatecommand=(vcmd, '%P')
     ).grid(row=0, column=4, sticky=tk.W)
 
+    nb.Label(
+        frame,
+        text='Text Size:',
+    ).grid(row=23, padx=x_padding, sticky=tk.W)
+    size_options = [
+        'Normal',
+        'Large'
+    ]
+    nb.OptionMenu(
+        frame,
+        this.overlay_size,
+        this.overlay_size.get(),
+        *size_options
+    ).grid(row=24, padx=x_padding, pady=y_padding, column=0, sticky=tk.W)
+
     return frame
 
 
@@ -150,6 +166,7 @@ def prefs_changed(cmdr: str, is_beta: bool) -> None:
     config.set('navroute_jumps', this.jump_num.get())
     config.set('navroute_overlay', this.use_overlay.get())
     config.set('navroute_overlay_color', this.overlay_color.get())
+    config.set('navroute_overlay_size', this.overlay_size.get())
     config.set('navroute_overlay_anchor_x', this.overlay_anchor_x.get())
     config.set('navroute_overlay_anchor_y', this.overlay_anchor_y.get())
     process_jumps()
@@ -159,8 +176,9 @@ def parse_config() -> None:
     this.jump_num = tk.IntVar(value=config.get_int(key='navroute_jumps', default=1))
     this.use_overlay = tk.BooleanVar(value=config.get_bool(key='navroute_overlay', default=False))
     this.overlay_color = tk.StringVar(value=config.get_str(key='navroute_overlay_color', default='#ffffff'))
-    this.overlay_anchor_x = tk.IntVar(value=config.get_int(key='navroute_overlay_anchor_x', default=500))
-    this.overlay_anchor_y = tk.IntVar(value=config.get_int(key='navroute_overlay_anchor_y', default=1080))
+    this.overlay_size = tk.StringVar(value=config.get_str(key='navroute_overlay_size', default='Normal'))
+    this.overlay_anchor_x = tk.IntVar(value=config.get_int(key='navroute_overlay_anchor_x', default=0))
+    this.overlay_anchor_y = tk.IntVar(value=config.get_int(key='navroute_overlay_anchor_y', default=1040))
 
 
 def validate_int(val: str) -> bool:
@@ -266,5 +284,6 @@ def process_jumps() -> None:
     this.navroute_label['text'] = display
 
     if this.overlay.available():
-        this.overlay.display("navroute_display", display.replace("\n", " "),
-                             this.overlay_anchor_x.get(), this.overlay_anchor_y.get(), this.overlay_color.get())
+        overlay_text = f'{this.remaining_jumps} Jumps: ' + display.replace("\n", " ")
+        this.overlay.display("navroute_display", overlay_text, this.overlay_anchor_x.get(),
+                             this.overlay_anchor_y.get(), this.overlay_color.get(), this.overlay_size.get().lower())
