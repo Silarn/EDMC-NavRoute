@@ -2,7 +2,7 @@ import threading
 from typing import Callable
 
 from EDMCLogging import get_plugin_logger
-from bio_scan import const
+from navroute import const
 
 try:
     from EDMCOverlay import edmcoverlay
