@@ -84,6 +84,32 @@ class Overlay:
         except Exception as err:
             logger.debug(err)
 
+    def draw(self, message_id: str, text: str, x: int = 0, y: int = 0,
+                color: str = "#ffffff", size: str = "normal", ttl: float = 60) -> None:
+        """
+        Displays text with given attributes. Only draws text once which expires after 'ttl'.
+
+        :param message_id: Unique identifier for a given text block.
+        :param text: Message to display.
+        :param x: X coordinate
+        :param y: Y coordinate
+        :param color: Accepts "red", "green", "blue", and hex "#ffffff"
+        :param size: Accepts "normal" and "large"
+        :param ttl: Float value for display lifetime in seconds
+        """
+        if message_id in self._text_blocks:
+            self.clear(message_id)
+        text_lines = text.split("\n")
+        try:
+            count = 0
+            spacer = 14 if size == "normal" else 24
+            for message in text_lines:
+                self._overlay.send_message("{}_{}".format(message_id, count), message, color,
+                                           x, y + (spacer * count), ttl=ttl, size=size)
+                count += 1
+        except Exception as err:
+            logger.debug(err)
+
     def clear(self, message_id) -> None:
         """
         Clears a given text block identified by a unique message ID.
