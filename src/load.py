@@ -5,6 +5,8 @@
 # Copyright (C) 2023 Jeremy Rimpo
 # Licensed under the [GNU Public License (GPL)](http://www.gnu.org/licenses/gpl-2.0.html) version 2 or later.
 
+import json
+from os.path import join, expanduser
 import tkinter as tk
 from tkinter import ttk, colorchooser as tkColorChooser
 
@@ -17,7 +19,7 @@ import EDMCLogging
 from config import config
 from theme import theme
 from typing import Any, MutableMapping, Mapping
-from EDMCLogging import get_main_logger
+from EDMCLogging import get_plugin_logger
 from ttkHyperlinkLabel import HyperlinkLabel
 
 
@@ -27,9 +29,9 @@ class This:
     def __init__(self):
         self.jump_num: tk.IntVar | None = None
 
-        self.logger: EDMCLogging.LoggerMixin = get_main_logger()
+        self.logger: EDMCLogging.LoggerMixin = get_plugin_logger(const.name)
         self.current_system: str = "Unknown"
-        self.route: dict = {}
+        self.route: list[dict[str, Any]] = []
 
         self.parent: tk.Frame | None = None
         self.frame: tk.Frame | None = None
@@ -53,6 +55,7 @@ this = This()
 
 
 def plugin_start3(plugin_dir: str) -> str:
+    parse_navroute()
     return const.name
 
 
@@ -189,20 +192,53 @@ def validate_int(val: str) -> bool:
     return False
 
 
+def parse_navroute():
+    journal_dir = config.get_str('journaldir', default=config.default_journal_dir)
+    logdir = expanduser(journal_dir)
+    try:
+        with open(join(logdir, 'NavRoute.json')) as f:
+            raw = f.read()
+
+        try:
+            data = json.loads(raw)
+            if data is not None:
+                this.route = data['Route']
+                this.remaining_jumps = len(this.route) - 1
+                this.search_route = True
+
+        except json.JSONDecodeError:
+            this.logger.exception('Failed to decode NavRoute.json')
+    except Exception as e:
+        this.logger.exception(f'Could not open navroute file.')
+
+
 def journal_entry(cmdr: str, is_beta: bool, system: str,
                   station: str, entry: MutableMapping[str, Any], state: Mapping[str, Any]) -> str:
     this.current_system = system if system is not None else ''
+    if state['NavRoute'] is not None and state['NavRoute']['Route'] != this.route:
+        this.route = state['NavRoute']['Route']
+        this.remaining_jumps = 0
+        this.search_route = True
+
+    if entry['event'] == 'FSDTarget':
+        found = False
+        if this.route:
+            for nav in this.route:
+                if nav['StarSystem'] == entry['Name']:
+                    found = True
+                    break
+        if found:
+            this.remaining_jumps = entry['RemainingJumpsInRoute']
+        else:
+            parse_navroute()
+
+    if this.route and this.search_route:
+        for i, nav in enumerate(this.route):
+            if nav['StarSystem'] == this.current_system:
+                this.remaining_jumps = len(this.route) - (i + 1)
+                break
 
     match entry['event']:
-        case 'FSDTarget':
-            found = False
-            if this.route:
-                for nav in this.route:
-                    if nav['StarSystem'] == entry['Name']:
-                        found = True
-                        break
-            if found:
-                this.remaining_jumps = entry['RemainingJumpsInRoute']
         case 'NavRoute':
             if state['NavRoute'] is not None:
                 this.route = state['NavRoute']['Route']
@@ -257,11 +293,9 @@ def journal_entry(cmdr: str, is_beta: bool, system: str,
                 if this.overlay.available():
                     this.overlay.clear('navroute_display')
 
-    if state['NavRoute'] is not None and this.search_route:
-        if this.route != state['NavRoute']['Route']:
-            this.route = state['NavRoute']['Route']
-            this.search_route = False
-            process_jumps()
+    if this.search_route:
+        this.search_route = False
+        process_jumps()
 
     return ''
 
