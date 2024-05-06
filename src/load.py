@@ -298,10 +298,10 @@ def process_jumps() -> None:
 
     for i, jump in enumerate(remaining_route):
         if i >= this.jump_num.get() or i == (len(remaining_route)):
-            display += f' -> {last_system["StarSystem"]}'
+            display += f' -> {last_system["StarSystem"]} [{last_system["StarClass"]}]'
             break
         else:
-            display += f' -> {jump["StarSystem"]}'
+            display += f' -> {jump["StarSystem"]} [{jump["StarClass"]}]'
             if i == (this.jump_num.get() - 1) and i < len(remaining_route) - 2:
                 display += ' | +{} Jump(s)'.format(this.remaining_jumps - this.jump_num.get() - 1)
 
