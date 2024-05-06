@@ -11,6 +11,7 @@ from tkinter import ttk, colorchooser as tkColorChooser
 import myNotebook as nb
 
 from navroute import const, overlay
+from navroute.status_flags import StatusFlags2, StatusFlags
 
 import EDMCLogging
 from config import config
@@ -37,6 +38,8 @@ class This:
         self.navroute_label: tk.Label | None = None
         self.search_route: bool = False
         self.remaining_jumps: int = 0
+        self.status: StatusFlags = StatusFlags(0)
+        self.status: StatusFlags2 = StatusFlags2(0)
 
         self.overlay = overlay.Overlay()
         self.use_overlay: tk.BooleanVar | None = None
@@ -209,15 +212,16 @@ def journal_entry(cmdr: str, is_beta: bool, system: str,
             this.search_route = True
             process_jumps()
         case 'NavRouteClear':
-            this.remaining_jumps = 0
-            this.route.clear()
-            this.search_route = False
-            this.remain_label['text'] = "NavRoute: NavRoute Cleared"
-            this.navroute_label['text'] = "Plot a Route to Begin"
-            if this.overlay.available():
-                this.overlay.draw('navroute_display', 'NavRoute Cleared', this.overlay_anchor_x.get(),
-                                     this.overlay_anchor_y.get(), this.overlay_color.get(),
-                                     this.overlay_size.get().lower(), 10)
+            if StatusFlags.FSD_JUMP_IN_PROGRESS not in this.status:
+                this.remaining_jumps = 0
+                this.route.clear()
+                this.search_route = False
+                this.remain_label['text'] = "NavRoute: NavRoute Cleared"
+                this.navroute_label['text'] = "Plot a Route to Begin"
+                if this.overlay.available():
+                    this.overlay.draw('navroute_display', 'NavRoute Cleared', this.overlay_anchor_x.get(),
+                                         this.overlay_anchor_y.get(), this.overlay_color.get(),
+                                         this.overlay_size.get().lower(), 10)
         case 'FSDJump':
             if len(this.route):
                 if entry['StarSystem'] == this.route[-1]['StarSystem']:
@@ -226,6 +230,10 @@ def journal_entry(cmdr: str, is_beta: bool, system: str,
                     this.remaining_jumps = 0
                     this.route.clear()
                     this.search_route = False
+                    if this.overlay.available():
+                        this.overlay.draw('navroute_display', 'NavRoute Complete!',
+                                          this.overlay_anchor_x.get(), this.overlay_anchor_y.get(),
+                                          this.overlay_color.get(), this.overlay_size.get().lower(), 10)
                 else:
                     found = False
                     for nav in this.route:
@@ -256,6 +264,23 @@ def journal_entry(cmdr: str, is_beta: bool, system: str,
             process_jumps()
 
     return ''
+
+
+def dashboard_entry(cmdr: str, is_beta: bool, entry: dict[str, any]) -> str:
+    """
+    EDMC dashboard entry hook. Parses updates to the Status.json.
+    Used to determine planetary location data. Used by waypoints, organic scans, and display focus.
+
+    :param cmdr: Commander name (unused)
+    :param is_beta: Beta status (unused)
+    :param entry: Dictionary of status file data
+    :return: Result string. Empty means success.
+    """
+
+    this.status = StatusFlags(entry['Flags'])
+    this.status2 = StatusFlags2(0)
+    if 'Flags2' in entry:
+        this.status2 = StatusFlags2(entry['Flags2'])
 
 
 def process_jumps() -> None:
