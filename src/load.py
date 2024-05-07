@@ -43,6 +43,8 @@ class This:
         self.status: StatusFlags = StatusFlags(0)
         self.status: StatusFlags2 = StatusFlags2(0)
 
+        self.show_starclass: tk.BooleanVar | None = None
+
         self.overlay = overlay.Overlay()
         self.use_overlay: tk.BooleanVar | None = None
         self.overlay_color: tk.StringVar | None = None
@@ -109,6 +111,11 @@ def plugin_prefs(parent: nb.Frame, cmdr: str, is_beta: bool) -> nb.Frame:
         validate='all',
         validatecommand=(vcmd, '%P')
     ).grid(row=11, padx=x_padding, pady=y_padding, column=0, sticky=tk.W)
+    nb.Checkbutton(
+        frame,
+        text='Show star class',
+        variable=this.show_starclass,
+    ).grid(row=11, padx=x_padding, pady=y_padding, column=1, sticky=tk.W)
 
     # Overlay settings
     ttk.Separator(frame).grid(row=15, columnspan=3, pady=y_padding * 2, sticky=tk.EW)
@@ -169,6 +176,7 @@ def plugin_prefs(parent: nb.Frame, cmdr: str, is_beta: bool) -> nb.Frame:
 
 def prefs_changed(cmdr: str, is_beta: bool) -> None:
     config.set('navroute_jumps', this.jump_num.get())
+    config.set('navroute_starclass', this.show_starclass.get())
     config.set('navroute_overlay', this.use_overlay.get())
     config.set('navroute_overlay_color', this.overlay_color.get())
     config.set('navroute_overlay_size', this.overlay_size.get())
@@ -179,6 +187,7 @@ def prefs_changed(cmdr: str, is_beta: bool) -> None:
 
 def parse_config() -> None:
     this.jump_num = tk.IntVar(value=config.get_int(key='navroute_jumps', default=1))
+    this.show_starclass = tk.BooleanVar(value=config.get_bool(key='navroute_starclass', default=True))
     this.use_overlay = tk.BooleanVar(value=config.get_bool(key='navroute_overlay', default=False))
     this.overlay_color = tk.StringVar(value=config.get_str(key='navroute_overlay_color', default='#ffffff'))
     this.overlay_size = tk.StringVar(value=config.get_str(key='navroute_overlay_size', default='Normal'))
@@ -332,10 +341,12 @@ def process_jumps() -> None:
 
     for i, jump in enumerate(remaining_route):
         if i >= this.jump_num.get() or i == (len(remaining_route)):
-            display += f' -> {last_system["StarSystem"]} [{last_system["StarClass"]}]'
+            display += f' -> {last_system["StarSystem"]} [{last_system["StarClass"]}]' if this.show_starclass.get() \
+                else f' -> {last_system["StarSystem"]}'
             break
         else:
-            display += f' -> {jump["StarSystem"]} [{jump["StarClass"]}]'
+            display += f' -> {jump["StarSystem"]} [{jump["StarClass"]}]' if this.show_starclass.get() \
+                else f' -> {jump["StarSystem"]}'
             if i == (this.jump_num.get() - 1) and i < len(remaining_route) - 2:
                 display += ' | +{} Jump(s)'.format(this.remaining_jumps - this.jump_num.get() - 1)
 
