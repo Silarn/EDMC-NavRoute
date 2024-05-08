@@ -7,6 +7,8 @@
 
 import json
 from os.path import join, expanduser
+import requests
+import semantic_version
 import tkinter as tk
 from tkinter import ttk, colorchooser as tkColorChooser
 
@@ -27,9 +29,11 @@ class This:
     """Holds module globals."""
 
     def __init__(self):
+        self.VERSION = semantic_version.Version(const.version)
+        self.NAME = const.name
         self.jump_num: tk.IntVar | None = None
 
-        self.logger: EDMCLogging.LoggerMixin = get_plugin_logger(const.name)
+        self.logger: EDMCLogging.LoggerMixin = get_plugin_logger(self.NAME)
         self.current_system: str = "Unknown"
         self.route: list[dict[str, Any]] = []
 
@@ -38,6 +42,7 @@ class This:
         self.title_label: tk.Label | None = None
         self.remain_label: tk.Label | None = None
         self.navroute_label: tk.Label | None = None
+        self.update_button: HyperlinkLabel | None = None
         self.search_route: bool = False
         self.remaining_jumps: int = 0
         self.status: StatusFlags = StatusFlags(0)
@@ -70,6 +75,12 @@ def plugin_app(parent: tk.Frame) -> tk.Frame:
     this.remain_label.grid(row=0)
     this.navroute_label = tk.Label(this.frame, text="No NavRoute Set")
     this.navroute_label.grid(row=1)
+    update = version_check()
+    if update != '':
+        text = f'Version {update} is now available'
+        url = f'https://github.com/Silarn/EDMC-NavRoute/releases/tag/v{update}'
+        this.update_button = HyperlinkLabel(this.frame, text=text, url=url)
+        this.update_button.grid(row=2, sticky=tk.N)
     theme.update(this.frame)
     return this.frame
 
@@ -193,6 +204,28 @@ def parse_config() -> None:
     this.overlay_size = tk.StringVar(value=config.get_str(key='navroute_overlay_size', default='Normal'))
     this.overlay_anchor_x = tk.IntVar(value=config.get_int(key='navroute_overlay_anchor_x', default=0))
     this.overlay_anchor_y = tk.IntVar(value=config.get_int(key='navroute_overlay_anchor_y', default=1040))
+
+
+def version_check() -> str:
+    """
+    Parse latest GitHub release version
+
+    :return: The latest version string if it's newer than ours
+    """
+
+    try:
+        req = requests.get(url='https://api.github.com/repos/Silarn/EDMC-NavRoute/releases/latest')
+        data = req.json()
+        if req.status_code != requests.codes.ok:
+            raise requests.RequestException
+    except (requests.RequestException, requests.JSONDecodeError) as ex:
+        this.logger.error('Failed to parse GitHub release info', exc_info=ex)
+        return ''
+
+    version = semantic_version.Version(data['tag_name'][1:])
+    if version > this.VERSION:
+        return str(version)
+    return ''
 
 
 def validate_int(val: str) -> bool:
