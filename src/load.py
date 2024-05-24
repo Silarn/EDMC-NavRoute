@@ -46,7 +46,7 @@ class This:
         self.search_route: bool = False
         self.remaining_jumps: int = 0
         self.status: StatusFlags = StatusFlags(0)
-        self.status: StatusFlags2 = StatusFlags2(0)
+        self.status2: StatusFlags2 = StatusFlags2(0)
 
         self.show_starclass: tk.BooleanVar | None = None
 
@@ -254,6 +254,13 @@ def parse_navroute():
         this.logger.exception(f'Could not open navroute file.')
 
 
+def can_display_overlay() -> bool:
+    if ((StatusFlags.IN_SHIP in this.status) and not (StatusFlags.DOCKED in this.status)
+            and not (StatusFlags.LANDED in this.status)):
+        return True
+    return False
+
+
 def journal_entry(cmdr: str, is_beta: bool, system: str,
                   station: str, entry: MutableMapping[str, Any], state: Mapping[str, Any]) -> str:
     this.current_system = system if system is not None else ''
@@ -296,10 +303,10 @@ def journal_entry(cmdr: str, is_beta: bool, system: str,
                 this.search_route = False
                 this.remain_label['text'] = "NavRoute: NavRoute Cleared"
                 this.navroute_label['text'] = "Plot a Route to Begin"
-                if this.overlay.available():
+                if this.overlay.available() and can_display_overlay():
                     this.overlay.draw('navroute_display', 'NavRoute Cleared', this.overlay_anchor_x.get(),
-                                         this.overlay_anchor_y.get(), this.overlay_color.get(),
-                                         this.overlay_size.get().lower(), 10)
+                                      this.overlay_anchor_y.get(), this.overlay_color.get(),
+                                      this.overlay_size.get().lower(), 10)
         case 'FSDJump':
             if len(this.route):
                 if entry['StarSystem'] == this.route[-1]['StarSystem']:
@@ -308,7 +315,7 @@ def journal_entry(cmdr: str, is_beta: bool, system: str,
                     this.remaining_jumps = 0
                     this.route.clear()
                     this.search_route = False
-                    if this.overlay.available():
+                    if this.overlay.available() and can_display_overlay():
                         this.overlay.draw('navroute_display', 'NavRoute Complete!',
                                           this.overlay_anchor_x.get(), this.overlay_anchor_y.get(),
                                           this.overlay_color.get(), this.overlay_size.get().lower(), 10)
@@ -326,13 +333,13 @@ def journal_entry(cmdr: str, is_beta: bool, system: str,
                         next_system = this.route[index]
                         divert_text = 'Jump to {} to Resume'.format(next_system['StarSystem'])
                         this.navroute_label['text'] = divert_text
-                        if this.overlay.available():
+                        if this.overlay.available() and can_display_overlay():
                             this.overlay.display('navroute_display', divert_text, this.overlay_anchor_x.get(),
                                                  this.overlay_anchor_y.get(), this.overlay_color.get())
             else:
                 this.remain_label['text'] = 'NavRoute: No NavRoute Set'
                 this.navroute_label['text'] = 'Plot a Route to Begin'
-                if this.overlay.available():
+                if this.overlay.available() and can_display_overlay():
                     this.overlay.clear('navroute_display')
 
     if this.search_route:
@@ -364,7 +371,7 @@ def process_jumps() -> None:
         this.remain_label['text'] = 'NavRoute: No NavRoute Set'
         this.navroute_label['text'] = 'Plot a Route to Begin'
 
-        if this.overlay.available():
+        if this.overlay.available() and can_display_overlay():
             this.overlay.clear('navroute_display')
         return
 
@@ -389,7 +396,7 @@ def process_jumps() -> None:
     this.remain_label['text'] = f'NavRoute: {this.remaining_jumps} Jump{"s"[:this.remaining_jumps ^ 1]} Remaining:'
     this.navroute_label['text'] = display
 
-    if this.overlay.available():
+    if this.overlay.available() and can_display_overlay():
         overlay_text = f'{this.remaining_jumps} Jumps: ' + display.replace('\n', ' ')
         this.overlay.display('navroute_display', overlay_text, this.overlay_anchor_x.get(),
                              this.overlay_anchor_y.get(), this.overlay_color.get(), this.overlay_size.get().lower())
