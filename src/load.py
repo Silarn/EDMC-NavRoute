@@ -62,7 +62,6 @@ this = This()
 
 
 def plugin_start3(plugin_dir: str) -> str:
-    parse_navroute()
     return const.name
 
 
@@ -254,15 +253,19 @@ def parse_navroute():
         this.logger.exception(f'Could not open navroute file.')
 
 
-def can_display_overlay() -> bool:
-    if ((StatusFlags.IN_SHIP in this.status) and not (StatusFlags.DOCKED in this.status)
-            and not (StatusFlags.LANDED in this.status)):
+def can_display_overlay(status: StatusFlags | None = None) -> bool:
+    if status is None:
+        status = this.status
+    if ((StatusFlags.IN_SHIP in status) and not (StatusFlags.DOCKED in status)
+            and not (StatusFlags.LANDED in status)):
         return True
     return False
 
 
 def journal_entry(cmdr: str, is_beta: bool, system: str,
                   station: str, entry: MutableMapping[str, Any], state: Mapping[str, Any]) -> str:
+    if this.current_system is None:
+        parse_navroute()
     this.current_system = system if system is not None else ''
     if state['NavRoute'] is not None and state['NavRoute']['Route'] != this.route:
         this.route = state['NavRoute']['Route']
@@ -360,10 +363,16 @@ def dashboard_entry(cmdr: str, is_beta: bool, entry: dict[str, any]) -> str:
     :return: Result string. Empty means success.
     """
 
+    old_status = this.status
     this.status = StatusFlags(entry['Flags'])
     this.status2 = StatusFlags2(0)
     if 'Flags2' in entry:
         this.status2 = StatusFlags2(entry['Flags2'])
+
+    if can_display_overlay(old_status) != can_display_overlay():
+        process_jumps()
+
+    return ''
 
 
 def process_jumps() -> None:
@@ -388,7 +397,7 @@ def process_jumps() -> None:
             display += f' -> {jump["StarSystem"]} [{jump["StarClass"]}]' if this.show_starclass.get() \
                 else f' -> {jump["StarSystem"]}'
             if i == (this.jump_num.get() - 1) and i < len(remaining_route) - 2:
-                display += ' | +{} Jump(s)'.format(this.remaining_jumps - this.jump_num.get() - 1)
+                display += f' | +{this.remaining_jumps - this.jump_num.get() - 1} Jump{"s"[:this.remaining_jumps ^ 1]}'
 
     if len(display) > 60:
         display = '\n-> '.join(display.split(' -> '))
@@ -396,7 +405,10 @@ def process_jumps() -> None:
     this.remain_label['text'] = f'NavRoute: {this.remaining_jumps} Jump{"s"[:this.remaining_jumps ^ 1]} Remaining:'
     this.navroute_label['text'] = display
 
-    if this.overlay.available() and can_display_overlay():
-        overlay_text = f'{this.remaining_jumps} Jumps: ' + display.replace('\n', ' ')
-        this.overlay.display('navroute_display', overlay_text, this.overlay_anchor_x.get(),
-                             this.overlay_anchor_y.get(), this.overlay_color.get(), this.overlay_size.get().lower())
+    if this.overlay.available():
+        if can_display_overlay():
+            overlay_text = f'{this.remaining_jumps} Jump{"s"[:this.remaining_jumps ^ 1]}: ' + display.replace('\n', ' ')
+            this.overlay.display('navroute_display', overlay_text, this.overlay_anchor_x.get(),
+                                 this.overlay_anchor_y.get(), this.overlay_color.get(), this.overlay_size.get().lower())
+        else:
+            this.overlay.clear('navroute_display')
