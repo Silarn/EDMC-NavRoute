@@ -84,7 +84,7 @@ def plugin_app(parent: tk.Frame) -> tk.Frame:
     return this.frame
 
 
-def plugin_prefs(parent: nb.Frame, cmdr: str, is_beta: bool) -> nb.Frame:
+def plugin_prefs(parent: ttk.Notebook, cmdr: str, is_beta: bool) -> nb.Frame:
     color_button = None
 
     def color_chooser() -> None:
@@ -139,13 +139,14 @@ def plugin_prefs(parent: nb.Frame, cmdr: str, is_beta: bool) -> nb.Frame:
         text='Enable overlay',
         variable=this.use_overlay
     ).grid(row=21, column=0, padx=x_button_padding, pady=0, sticky=tk.W)
-    color_button = nb.ColoredButton(
+    color_button = tk.Button(
         frame,
         text='Text Color',
         foreground=this.overlay_color.get(),
         background='grey4',
         command=lambda: color_chooser()
-    ).grid(row=22, column=0, padx=x_button_padding, pady=y_padding, sticky=tk.W)
+    )
+    color_button.grid(row=22, column=0, padx=x_button_padding, pady=y_padding, sticky=tk.W)
 
     anchor_frame = nb.Frame(frame)
     anchor_frame.grid(row=21, column=1, sticky=tk.NSEW)
@@ -155,13 +156,13 @@ def plugin_prefs(parent: nb.Frame, cmdr: str, is_beta: bool) -> nb.Frame:
         .grid(row=0, column=0, sticky=tk.W)
     nb.Label(anchor_frame, text='X') \
         .grid(row=0, column=1, sticky=tk.W)
-    nb.Entry(
+    nb.EntryMenu(
         anchor_frame, text=this.overlay_anchor_x.get(), textvariable=this.overlay_anchor_x,
         width=8, validate='all', validatecommand=(vcmd, '%P')
     ).grid(row=0, column=2, sticky=tk.W)
     nb.Label(anchor_frame, text='Y') \
         .grid(row=0, column=3, sticky=tk.W)
-    nb.Entry(
+    nb.EntryMenu(
         anchor_frame, text=this.overlay_anchor_y.get(), textvariable=this.overlay_anchor_y,
         width=8, validate='all', validatecommand=(vcmd, '%P')
     ).grid(row=0, column=4, sticky=tk.W)
