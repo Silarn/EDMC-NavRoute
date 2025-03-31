@@ -2,6 +2,10 @@ from enum import Flag, auto
 
 
 class StatusFlags(Flag):
+    """
+    Enum definition for Elite Dangerous Status.json flags (group 1)
+    """
+
     DOCKED = auto()
     LANDED = auto()
     LANDING_GEAR = auto()
@@ -33,10 +37,14 @@ class StatusFlags(Flag):
     NIGHT_VISION = auto()
     HAVE_ALTITUDE = auto()
     FSD_JUMP_IN_PROGRESS = auto()
-    SRV_HIGHBEAM_ON = auto()
+    SRV_HIGHBEAM = auto()
 
 
 class StatusFlags2(Flag):
+    """
+    Enum definition for Elite Dangerous Status.json flags (group 2)
+    """
+
     ON_FOOT = auto()
     IN_TAXI = auto()
     MULTICREW = auto()
@@ -57,3 +65,6 @@ class StatusFlags2(Flag):
     MULTICREW_TELEPRESENCE = auto()
     MULTICREW_PHYSICAL = auto()
     SUPERCHARGING_FSD = auto()
+    SCO_ACTIVE = auto()
+    SUPERCRUISE_ASSIST = auto()
+    NPC_CREW = auto()
