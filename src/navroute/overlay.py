@@ -145,7 +145,7 @@ class Overlay:
                 for message in messages:
                     try:
                         self._overlay.send_message("{}_{}".format(message_id, count), message, color,
-                                                   x, y + (spacer * count), 60, size)
+                                                   x, y + (spacer * count), ttl=60, size=size)
                     except Exception as err:
                         logger.debug(err)
                     count += 1
