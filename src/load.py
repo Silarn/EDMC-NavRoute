@@ -115,7 +115,7 @@ def plugin_prefs(parent: ttk.Notebook, cmdr: str, is_beta: bool) -> nb.Frame:
         text="Number of Interim Jumps:",
     ).grid(row=10, padx=x_padding, sticky=tk.W)
     vcmd = (frame.register(validate_int))
-    nb.Entry(
+    nb.EntryMenu(
         frame,
         textvariable=this.jump_num,
         validate='all',
