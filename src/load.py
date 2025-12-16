@@ -6,6 +6,7 @@
 # Licensed under the [GNU Public License (GPL)](http://www.gnu.org/licenses/gpl-2.0.html) version 2 or later.
 
 import json
+import math
 from os.path import join, expanduser
 import requests
 import semantic_version
@@ -15,6 +16,7 @@ from tkinter import ttk, colorchooser as tkColorChooser
 import myNotebook as nb
 
 from navroute import const, overlay
+from navroute.format_util import Formatter
 from navroute.status_flags import StatusFlags2, StatusFlags
 
 import EDMCLogging
@@ -31,11 +33,14 @@ class This:
     def __init__(self):
         self.VERSION = semantic_version.Version(const.version)
         self.NAME = const.name
+        self.formatter = Formatter()
+
         self.jump_num: tk.IntVar | None = None
 
         self.logger: EDMCLogging.LoggerMixin = get_plugin_logger(self.NAME)
         self.current_system: str = "Unknown"
         self.route: list[dict[str, Any]] = []
+        self.total_distance: int = 0
 
         self.parent: tk.Frame | None = None
         self.frame: tk.Frame | None = None
@@ -45,6 +50,7 @@ class This:
         self.update_button: HyperlinkLabel | None = None
         self.search_route: bool = False
         self.remaining_jumps: int = 0
+        self.overcharge_boost: bool = False
         self.status: StatusFlags = StatusFlags(0)
         self.status2: StatusFlags2 = StatusFlags2(0)
 
@@ -193,6 +199,7 @@ def prefs_changed(cmdr: str, is_beta: bool) -> None:
     config.set('navroute_overlay_size', this.overlay_size.get())
     config.set('navroute_overlay_anchor_x', this.overlay_anchor_x.get())
     config.set('navroute_overlay_anchor_y', this.overlay_anchor_y.get())
+    this.formatter.set_locale(config.get_str('language'))
     process_jumps()
 
 
@@ -204,6 +211,7 @@ def parse_config() -> None:
     this.overlay_size = tk.StringVar(value=config.get_str(key='navroute_overlay_size', default='Normal'))
     this.overlay_anchor_x = tk.IntVar(value=config.get_int(key='navroute_overlay_anchor_x', default=0))
     this.overlay_anchor_y = tk.IntVar(value=config.get_int(key='navroute_overlay_anchor_y', default=1040))
+    this.formatter.set_locale(config.get_str('language'))
 
 
 def version_check() -> str:
@@ -247,6 +255,7 @@ def parse_navroute():
                 this.route = data['Route']
                 this.remaining_jumps = len(this.route) - 1
                 this.search_route = True
+                parse_total_distance()
 
         except json.JSONDecodeError:
             this.logger.exception('Failed to decode NavRoute.json')
@@ -272,6 +281,12 @@ def journal_entry(cmdr: str, is_beta: bool, system: str,
         this.route = state['NavRoute']['Route']
         this.remaining_jumps = 0
         this.search_route = True
+        parse_total_distance()
+
+    this.overcharge_boost = False
+    if 'FrameShiftDrive' in state['Modules']:
+        if state['Modules']['FrameShiftDrive']['Item'] == 'int_hyperdrive_overcharge_size8_class5_overchargebooster_mkii':
+            this.overcharge_boost = True
 
     if entry['event'] == 'FSDTarget':
         found = False
@@ -299,6 +314,7 @@ def journal_entry(cmdr: str, is_beta: bool, system: str,
                 this.route = entry['Route']
             this.remaining_jumps = len(this.route) - 1 if this.route else 0
             this.search_route = True
+            parse_total_distance()
             process_jumps()
         case 'NavRouteClear':
             if StatusFlags.FSD_JUMP_IN_PROGRESS not in this.status:
@@ -307,6 +323,7 @@ def journal_entry(cmdr: str, is_beta: bool, system: str,
                 this.search_route = False
                 this.remain_label['text'] = "NavRoute: NavRoute Cleared"
                 this.navroute_label['text'] = "Plot a Route to Begin"
+                this.total_distance = 0
                 if this.overlay.available() and can_display_overlay():
                     this.overlay.draw('navroute_display', 'NavRoute Cleared', this.overlay_anchor_x.get(),
                                       this.overlay_anchor_y.get(), this.overlay_color.get(),
@@ -319,6 +336,7 @@ def journal_entry(cmdr: str, is_beta: bool, system: str,
                     this.remaining_jumps = 0
                     this.route.clear()
                     this.search_route = False
+                    this.total_distance = 0
                     if this.overlay.available() and can_display_overlay():
                         this.overlay.draw('navroute_display', 'NavRoute Complete!',
                                           this.overlay_anchor_x.get(), this.overlay_anchor_y.get(),
@@ -353,6 +371,17 @@ def journal_entry(cmdr: str, is_beta: bool, system: str,
     return ''
 
 
+def parse_total_distance() -> None:
+    total_distance = 0
+    last_pos = this.route[0]['StarPos']
+    for i, nav in enumerate(this.route[1:]):
+        total_distance += math.sqrt((nav['StarPos'][0] - last_pos[0]) ** 2 +
+                                    (nav['StarPos'][1] - last_pos[1]) ** 2 +
+                                    (nav['StarPos'][2] - last_pos[2]) ** 2)
+        last_pos = nav['StarPos']
+    this.total_distance = total_distance
+
+
 def dashboard_entry(cmdr: str, is_beta: bool, entry: dict[str, any]) -> str:
     """
     EDMC dashboard entry hook. Parses updates to the Status.json.
@@ -376,6 +405,19 @@ def dashboard_entry(cmdr: str, is_beta: bool, entry: dict[str, any]) -> str:
     return ''
 
 
+def star_display(star_class: str) -> str:
+    match star_class:
+        case 'M' | 'K' | 'G' | 'F' | 'A' | 'B' | 'O':
+            return f'\N{FUEL PUMP}{star_class}'
+        case 'N':
+            return '\N{HIGH VOLTAGE SIGN}N{}'.format('×5' if this.overcharge_boost else '×4')
+
+    if star_class.startswith('D'):
+        return '\N{HIGH VOLTAGE SIGN}{}{}'.format(star_class, '×2' if this.overcharge_boost else '×1.5')
+
+    return star_class
+
+
 def process_jumps() -> None:
     if not this.route:
         this.remain_label['text'] = 'NavRoute: No NavRoute Set'
@@ -386,29 +428,45 @@ def process_jumps() -> None:
         return
 
     remaining_route = this.route[-this.remaining_jumps:]
+    route_from_here = this.route[-(this.remaining_jumps+1):]
     last_system = this.route[-1]
     display = f'{this.current_system}'
+    remaining_distance = 0
 
     for i, jump in enumerate(remaining_route):
         if i >= this.jump_num.get() or i == (len(remaining_route)):
-            display += f' -> {last_system["StarSystem"]} [{last_system["StarClass"]}]' if this.show_starclass.get() \
-                else f' -> {last_system["StarSystem"]}'
+            remainder_distance = 0
+            for j, jump_remainder in enumerate(remaining_route[i:]):
+                remainder_distance += math.sqrt(
+                    (jump_remainder['StarPos'][0] - remaining_route[i-1:][j]['StarPos'][0]) ** 2 +
+                    (jump_remainder['StarPos'][1] - remaining_route[i-1:][j]['StarPos'][1]) ** 2 +
+                    (jump_remainder['StarPos'][2] - remaining_route[i-1:][j]['StarPos'][2]) ** 2)
+            remaining_distance += remainder_distance
+            display += (f' - {this.formatter.format_distance(remainder_distance, 'ly', False)} -> ' +
+                        f'{last_system["StarSystem"]} [{star_display(last_system["StarClass"])}]') if this.show_starclass.get() \
+                else f' - {this.formatter.format_distance(remainder_distance, 'ly', False)} -> {last_system["StarSystem"]}'
             break
         else:
-            display += f' -> {jump["StarSystem"]} [{jump["StarClass"]}]' if this.show_starclass.get() \
-                else f' -> {jump["StarSystem"]}'
+            distance = math.sqrt((jump['StarPos'][0] - route_from_here[i]['StarPos'][0]) ** 2 +
+                                 (jump['StarPos'][1] - route_from_here[i]['StarPos'][1]) ** 2 +
+                                 (jump['StarPos'][2] - route_from_here[i]['StarPos'][2]) ** 2)
+            remaining_distance += distance
+            display += (f' - {this.formatter.format_distance(distance, 'ly', False)} -> ' +
+                        f'{jump["StarSystem"]} [{star_display(jump["StarClass"])}]') if this.show_starclass.get() \
+                else f' - {this.formatter.format_distance(distance, 'ly', False)} -> {jump["StarSystem"]}'
             if i == (this.jump_num.get() - 1) and i < len(remaining_route) - 2:
                 display += f' | +{this.remaining_jumps - this.jump_num.get() - 1} Jump{"s"[:this.remaining_jumps ^ 1]}'
 
     if len(display) > 60:
         display = '\n-> '.join(display.split(' -> '))
 
-    this.remain_label['text'] = f'NavRoute: {this.remaining_jumps} Jump{"s"[:this.remaining_jumps ^ 1]} Remaining:'
+    distance_ratio = f'{this.formatter.format_distance(remaining_distance, '', False)}/{this.formatter.format_distance(this.total_distance, 'ly', False)}'
+    this.remain_label['text'] = f'NavRoute: {this.remaining_jumps} Jump{"s"[:this.remaining_jumps ^ 1]} Remaining ({distance_ratio}):'
     this.navroute_label['text'] = display
 
     if this.overlay.available():
         if can_display_overlay():
-            overlay_text = f'{this.remaining_jumps} Jump{"s"[:this.remaining_jumps ^ 1]}: ' + display.replace('\n', ' ')
+            overlay_text = f'{this.remaining_jumps} Jump{"s"[:this.remaining_jumps ^ 1]} ({distance_ratio}): ' + display.replace('\n', ' ')
             this.overlay.display('navroute_display', overlay_text, this.overlay_anchor_x.get(),
                                  this.overlay_anchor_y.get(), this.overlay_color.get(), this.overlay_size.get().lower())
         else:
