@@ -40,7 +40,8 @@ class This:
         self.logger: EDMCLogging.LoggerMixin = get_plugin_logger(self.NAME)
         self.current_system: str = "Unknown"
         self.route: list[dict[str, Any]] = []
-        self.total_distance: int = 0
+        self.total_distance: float = 0
+        self.straight_distance: float = 0
 
         self.parent: tk.Frame | None = None
         self.frame: tk.Frame | None = None
@@ -371,13 +372,16 @@ def journal_entry(cmdr: str, is_beta: bool, system: str,
     return ''
 
 
+def get_distance(a: tuple[float, float, float], b: tuple[float, float, float]) -> float:
+    return math.sqrt((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2)
+
+
 def parse_total_distance() -> None:
+    this.straight_distance = get_distance(this.route[0]['StarPos'], this.route[-1]['StarPos'])
     total_distance = 0
     last_pos = this.route[0]['StarPos']
     for i, nav in enumerate(this.route[1:]):
-        total_distance += math.sqrt((nav['StarPos'][0] - last_pos[0]) ** 2 +
-                                    (nav['StarPos'][1] - last_pos[1]) ** 2 +
-                                    (nav['StarPos'][2] - last_pos[2]) ** 2)
+        total_distance += get_distance(nav['StarPos'], last_pos)
         last_pos = nav['StarPos']
     this.total_distance = total_distance
 
@@ -410,10 +414,10 @@ def star_display(star_class: str) -> str:
         case 'M' | 'K' | 'G' | 'F' | 'A' | 'B' | 'O':
             return f'\N{FUEL PUMP}{star_class}'
         case 'N':
-            return '\N{HIGH VOLTAGE SIGN}N{}'.format('×5' if this.overcharge_boost else '×4')
+            return '\N{HIGH VOLTAGE SIGN}{}N'.format('×6 ' if this.overcharge_boost else '×4 ')
 
     if star_class.startswith('D'):
-        return '\N{HIGH VOLTAGE SIGN}{}{}'.format(star_class, '×2' if this.overcharge_boost else '×1.5')
+        return '\N{HIGH VOLTAGE SIGN}{}{}'.format('×3 ' if this.overcharge_boost else '×1.5 ', star_class)
 
     return star_class
 
@@ -437,19 +441,14 @@ def process_jumps() -> None:
         if i >= this.jump_num.get() or i == (len(remaining_route)):
             remainder_distance = 0
             for j, jump_remainder in enumerate(remaining_route[i:]):
-                remainder_distance += math.sqrt(
-                    (jump_remainder['StarPos'][0] - remaining_route[i-1:][j]['StarPos'][0]) ** 2 +
-                    (jump_remainder['StarPos'][1] - remaining_route[i-1:][j]['StarPos'][1]) ** 2 +
-                    (jump_remainder['StarPos'][2] - remaining_route[i-1:][j]['StarPos'][2]) ** 2)
+                remainder_distance += get_distance(jump_remainder['StarPos'], remaining_route[i-1:][j]['StarPos'])
             remaining_distance += remainder_distance
             display += (f' - {this.formatter.format_distance(remainder_distance, 'ly', False)} -> ' +
                         f'{last_system["StarSystem"]} [{star_display(last_system["StarClass"])}]') if this.show_starclass.get() \
                 else f' - {this.formatter.format_distance(remainder_distance, 'ly', False)} -> {last_system["StarSystem"]}'
             break
         else:
-            distance = math.sqrt((jump['StarPos'][0] - route_from_here[i]['StarPos'][0]) ** 2 +
-                                 (jump['StarPos'][1] - route_from_here[i]['StarPos'][1]) ** 2 +
-                                 (jump['StarPos'][2] - route_from_here[i]['StarPos'][2]) ** 2)
+            distance = get_distance(jump['StarPos'], route_from_here[i]['StarPos'])
             remaining_distance += distance
             display += (f' - {this.formatter.format_distance(distance, 'ly', False)} -> ' +
                         f'{jump["StarSystem"]} [{star_display(jump["StarClass"])}]') if this.show_starclass.get() \
@@ -461,7 +460,9 @@ def process_jumps() -> None:
         display = '\n-> '.join(display.split(' -> '))
 
     distance_ratio = f'{this.formatter.format_distance(remaining_distance, '', False)}/{this.formatter.format_distance(this.total_distance, 'ly', False)}'
-    this.remain_label['text'] = f'NavRoute: {this.remaining_jumps} Jump{"s"[:this.remaining_jumps ^ 1]} Remaining ({distance_ratio}):'
+    this.remain_label['text'] = (f'NavRoute ({this.formatter.format_distance(this.straight_distance, 'ly', False)},'
+                                 f' {(this.straight_distance/this.total_distance*100):.1f}% efficiency)\n '
+                                 f'{this.remaining_jumps} Jump{"s"[:this.remaining_jumps ^ 1]} Remaining ({distance_ratio})')
     this.navroute_label['text'] = display
 
     if this.overlay.available():
