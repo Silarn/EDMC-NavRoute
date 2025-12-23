@@ -39,6 +39,8 @@ class This:
 
         self.logger: EDMCLogging.LoggerMixin = get_plugin_logger(self.NAME)
         self.current_system: str = "Unknown"
+        self.current_system_class: str | None = None
+        self.next_system_class: str | None = None
         self.route: list[dict[str, Any]] = []
         self.total_distance: float = 0
         self.straight_distance: float = 0
@@ -55,7 +57,9 @@ class This:
         self.status: StatusFlags = StatusFlags(0)
         self.status2: StatusFlags2 = StatusFlags2(0)
 
+        self.show_distance: tk.BooleanVar | None = None
         self.show_starclass: tk.BooleanVar | None = None
+        self.show_indicators: tk.BooleanVar | None = None
 
         self.overlay = overlay.Overlay()
         self.use_overlay: tk.BooleanVar | None = None
@@ -130,9 +134,23 @@ def plugin_prefs(parent: ttk.Notebook, cmdr: str, is_beta: bool) -> nb.Frame:
     ).grid(row=11, padx=x_padding, pady=y_padding, column=0, sticky=tk.W)
     nb.Checkbutton(
         frame,
+        text='Show jump distance',
+        variable=this.show_distance,
+        command=lambda: indicator_check.config(state=tk.DISABLED if not this.show_starclass.get() else tk.NORMAL)
+    ).grid(row=11, padx=x_padding, pady=y_padding, column=1, sticky=tk.W)
+    indicator_check = nb.Checkbutton(
+        frame,
+        text='Show fuel / boost indicators (requires star class)',
+        variable=this.show_indicators,
+        state=tk.DISABLED if not this.show_starclass.get() else tk.NORMAL,
+    )
+    indicator_check.grid(row=12, padx=x_padding, pady=y_padding, column=1, sticky=tk.W)
+    nb.Checkbutton(
+        frame,
         text='Show star class',
         variable=this.show_starclass,
-    ).grid(row=11, padx=x_padding, pady=y_padding, column=1, sticky=tk.W)
+        command=lambda: indicator_check.config(state=tk.DISABLED if not this.show_starclass.get() else tk.NORMAL)
+    ).grid(row=12, padx=x_padding, pady=y_padding, column=0, sticky=tk.W)
 
     # Overlay settings
     ttk.Separator(frame).grid(row=15, columnspan=3, pady=y_padding * 2, sticky=tk.EW)
@@ -194,7 +212,9 @@ def plugin_prefs(parent: ttk.Notebook, cmdr: str, is_beta: bool) -> nb.Frame:
 
 def prefs_changed(cmdr: str, is_beta: bool) -> None:
     config.set('navroute_jumps', this.jump_num.get())
+    config.set('navroute_distance', this.show_distance.get())
     config.set('navroute_starclass', this.show_starclass.get())
+    config.set('navroute_indicators', this.show_indicators.get())
     config.set('navroute_overlay', this.use_overlay.get())
     config.set('navroute_overlay_color', this.overlay_color.get())
     config.set('navroute_overlay_size', this.overlay_size.get())
@@ -206,7 +226,9 @@ def prefs_changed(cmdr: str, is_beta: bool) -> None:
 
 def parse_config() -> None:
     this.jump_num = tk.IntVar(value=config.get_int(key='navroute_jumps', default=1))
+    this.show_distance = tk.BooleanVar(value=config.get_bool(key='navroute_distance', default=True))
     this.show_starclass = tk.BooleanVar(value=config.get_bool(key='navroute_starclass', default=True))
+    this.show_indicators = tk.BooleanVar(value=config.get_bool(key='navroute_indicators', default=True))
     this.use_overlay = tk.BooleanVar(value=config.get_bool(key='navroute_overlay', default=False))
     this.overlay_color = tk.StringVar(value=config.get_str(key='navroute_overlay_color', default='#ffffff'))
     this.overlay_size = tk.StringVar(value=config.get_str(key='navroute_overlay_size', default='Normal'))
@@ -258,10 +280,10 @@ def parse_navroute():
                 this.search_route = True
                 parse_total_distance()
 
-        except json.JSONDecodeError:
-            this.logger.exception('Failed to decode NavRoute.json')
-    except Exception as e:
-        this.logger.exception(f'Could not open navroute file.')
+        except json.JSONDecodeError as e:
+            this.logger.exception('Failed to decode NavRoute.json', exc_info=e)
+    except OSError as e:
+        this.logger.exception(f'Could not open navroute file.', exc_info=e)
 
 
 def can_display_overlay(status: StatusFlags | None = None) -> bool:
@@ -277,7 +299,9 @@ def journal_entry(cmdr: str, is_beta: bool, system: str,
                   station: str, entry: MutableMapping[str, Any], state: Mapping[str, Any]) -> str:
     if this.current_system is None:
         parse_navroute()
-    this.current_system = system if system is not None else ''
+    if system != this.current_system:
+        this.current_system = system if system is not None else ''
+        this.current_system_class = None
     if state['NavRoute'] is not None and state['NavRoute']['Route'] != this.route:
         this.route = state['NavRoute']['Route']
         this.remaining_jumps = 0
@@ -304,6 +328,7 @@ def journal_entry(cmdr: str, is_beta: bool, system: str,
     if this.route and this.search_route:
         for i, nav in enumerate(this.route):
             if nav['StarSystem'] == this.current_system:
+                this.current_system_class = nav['StarClass']
                 this.remaining_jumps = len(this.route) - (i + 1)
                 break
 
@@ -329,7 +354,12 @@ def journal_entry(cmdr: str, is_beta: bool, system: str,
                     this.overlay.draw('navroute_display', 'NavRoute Cleared', this.overlay_anchor_x.get(),
                                       this.overlay_anchor_y.get(), this.overlay_color.get(),
                                       this.overlay_size.get().lower(), 10)
+        case 'StartJump':
+            this.next_system_class = entry['StarClass']
         case 'FSDJump':
+            if this.next_system_class:
+                this.current_system_class = this.next_system_class
+                this.next_system_class = None
             if len(this.route):
                 if entry['StarSystem'] == this.route[-1]['StarSystem']:
                     this.remain_label['text'] = 'NavRoute: Route Complete!'
@@ -409,15 +439,19 @@ def dashboard_entry(cmdr: str, is_beta: bool, entry: dict[str, any]) -> str:
     return ''
 
 
-def star_display(star_class: str) -> str:
-    match star_class:
-        case 'M' | 'K' | 'G' | 'F' | 'A' | 'B' | 'O':
-            return f'\N{FUEL PUMP}{star_class}'
-        case 'N':
-            return '\N{HIGH VOLTAGE SIGN}{}N'.format('×6 ' if this.overcharge_boost else '×4 ')
+def star_display(star_class: str | None, indicators: bool = True) -> str:
+    if star_class is None:
+        return ''
 
-    if star_class.startswith('D'):
-        return '\N{HIGH VOLTAGE SIGN}{}{}'.format('×3 ' if this.overcharge_boost else '×1.5 ', star_class)
+    if indicators:
+        match star_class:
+            case 'M' | 'K' | 'G' | 'F' | 'A' | 'B' | 'O':
+                return f'\N{FUEL PUMP}{star_class}'
+            case 'N':
+                return '\N{HIGH VOLTAGE SIGN}{}N'.format('×6 ' if this.overcharge_boost else '×4 ')
+
+        if star_class.startswith('D'):
+            return '\N{HIGH VOLTAGE SIGN}{}{}'.format('×3 ' if this.overcharge_boost else '×1.5 ', star_class)
 
     return star_class
 
@@ -434,7 +468,7 @@ def process_jumps() -> None:
     remaining_route = this.route[-this.remaining_jumps:]
     route_from_here = this.route[-(this.remaining_jumps+1):]
     last_system = this.route[-1]
-    display = f'{this.current_system}'
+    display = '{}{}'.format(this.current_system, f' [{star_display(this.current_system_class, this.show_indicators.get())}]')
     remaining_distance = 0
 
     for i, jump in enumerate(remaining_route):
@@ -443,16 +477,16 @@ def process_jumps() -> None:
             for j, jump_remainder in enumerate(remaining_route[i:]):
                 remainder_distance += get_distance(jump_remainder['StarPos'], remaining_route[i-1:][j]['StarPos'])
             remaining_distance += remainder_distance
-            display += (f' - {this.formatter.format_distance(remainder_distance, 'ly', False)} -> ' +
-                        f'{last_system["StarSystem"]} [{star_display(last_system["StarClass"])}]') if this.show_starclass.get() \
+            display += ((f' - {this.formatter.format_distance(remainder_distance, 'ly', False)} -> ' if this.show_distance.get() else ' -> ') +
+                        f'{last_system["StarSystem"]} [{star_display(last_system["StarClass"], this.show_indicators.get())}]') if this.show_starclass.get() \
                 else f' - {this.formatter.format_distance(remainder_distance, 'ly', False)} -> {last_system["StarSystem"]}'
             break
         else:
             distance = get_distance(jump['StarPos'], route_from_here[i]['StarPos'])
             remaining_distance += distance
-            display += (f' - {this.formatter.format_distance(distance, 'ly', False)} -> ' +
-                        f'{jump["StarSystem"]} [{star_display(jump["StarClass"])}]') if this.show_starclass.get() \
-                else f' - {this.formatter.format_distance(distance, 'ly', False)} -> {jump["StarSystem"]}'
+            display += ((f' - {this.formatter.format_distance(distance, 'ly', False)} -> ' if this.show_distance.get() else ' -> ') +
+                        f'{jump["StarSystem"]}' + f' [{star_display(jump["StarClass"], this.show_indicators.get())}]') if this.show_starclass.get() \
+                else f' - {this.formatter.format_distance(distance, 'ly', False)} -> {jump["StarSystem"]}' if this.show_distance.get() else f'{jump["StarSystem"]}'
             if i == (this.jump_num.get() - 1) and i < len(remaining_route) - 2:
                 display += f' | +{this.remaining_jumps - this.jump_num.get() - 1} Jump{"s"[:this.remaining_jumps ^ 1]}'
 
