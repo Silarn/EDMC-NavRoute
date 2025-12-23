@@ -382,12 +382,15 @@ def journal_entry(cmdr: str, is_beta: bool, system: str,
                         process_jumps()
                     else:
                         this.remain_label['text'] = 'NavRoute: Diverted From Route!'
-                        index = len(this.route) - this.remaining_jumps
-                        next_system = this.route[index]
-                        divert_text = 'Jump to {} to Resume'.format(next_system['StarSystem'])
+                        nearest_system = ('', -1)
+                        for nav in this.route:
+                            distance = get_distance(entry['StarPos'], nav['StarPos'])
+                            if nearest_system[1] == -1 or distance < nearest_system[1]:
+                                nearest_system = (nav['StarSystem'], distance)
+                        divert_text = f'Recalculate or Jump\n{nearest_system[0]} to Resume\n({this.formatter.format_distance(nearest_system[1], 'ly', False)})'
                         this.navroute_label['text'] = divert_text
                         if this.overlay.available() and can_display_overlay():
-                            this.overlay.display('navroute_display', divert_text, this.overlay_anchor_x.get(),
+                            this.overlay.display('navroute_display', divert_text.replace('\n', ' '), this.overlay_anchor_x.get(),
                                                  this.overlay_anchor_y.get(), this.overlay_color.get())
             else:
                 this.remain_label['text'] = 'NavRoute: No NavRoute Set'
