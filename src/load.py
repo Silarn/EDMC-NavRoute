@@ -309,7 +309,7 @@ def journal_entry(cmdr: str, is_beta: bool, system: str,
         parse_total_distance()
 
     this.overcharge_boost = False
-    if state and 'FrameShiftDrive' in state['Modules']:
+    if state and 'FrameShiftDrive' in state.get('Modules', {}):
         if state['Modules']['FrameShiftDrive']['Item'] == 'int_hyperdrive_overcharge_size8_class5_overchargebooster_mkii':
             this.overcharge_boost = True
 
