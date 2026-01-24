@@ -69,6 +69,8 @@ class This:
         self.overlay_anchor_y: tk.IntVar | None = None
 
 
+__version__ = const.version
+
 this = This()
 
 
